@@ -3,17 +3,25 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
+    flake-parts.url = "github:hercules-ci/flake-parts";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      flake-parts,
+      ...
+    }:
+    let
+      # This version tracks the upstream ryanoasis/nerd-fonts release.
+      version = "3.4.0";
 
-        nerd-font-patcher = pkgs.python3Packages.buildPythonApplication rec {
+      buildNerdFontPatcher =
+        pkgs:
+        pkgs.python3Packages.buildPythonApplication rec {
           pname = "nerd-font-patcher";
-          version = "3.4.0";
+          inherit version;
 
           src = pkgs.fetchzip {
             url = "https://github.com/ryanoasis/nerd-fonts/releases/download/v${version}/FontPatcher.zip";
@@ -46,23 +54,39 @@
             license = pkgs.lib.licenses.mit;
           };
         };
-      in
-      {
-        packages = {
-          default = nerd-font-patcher;
-          nerd-font-patcher = nerd-font-patcher;
-        };
+    in
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      flake = {
+        # Expose the version so consumers can read it programmatically.
+        lib.version = version;
+      };
+      systems = [
+        "x86_64-linux"
+        "x86_64-darwin"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
+      perSystem =
+        { pkgs, ... }:
+        let
+          nerd-font-patcher = buildNerdFontPatcher pkgs;
+        in
+        {
+          packages = {
+            default = nerd-font-patcher;
+            nerd-font-patcher = nerd-font-patcher;
+          };
 
-        apps = {
-          default = {
-            type = "app";
-            program = "${nerd-font-patcher}/bin/nerd-font-patcher";
-          };
-          nerd-font-patcher = {
-            type = "app";
-            program = "${nerd-font-patcher}/bin/nerd-font-patcher";
+          apps = {
+            default = {
+              type = "app";
+              program = "${nerd-font-patcher}/bin/nerd-font-patcher";
+            };
+            nerd-font-patcher = {
+              type = "app";
+              program = "${nerd-font-patcher}/bin/nerd-font-patcher";
+            };
           };
         };
-      }
-    );
+    };
 }
