@@ -1,0 +1,86 @@
+name: "Check Upstream Update"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *" # daily at 03:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check for New Upstream Release
+      id: check
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        latest_version=$(
+          curl -sf -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest" \
+          | grep -o '"tag_name":\s*"[^"]*"' \
+          | head -1 \
+          | sed 's/"tag_name":\s*"v\?\([^"]*\)"/\1/'
+        )
+        if [[ -z "$latest_version" ]]; then
+          echo "Error: failed to fetch latest nerd-fonts version" >&2
+          exit 1
+        fi
+
+        # Check if we already have a tag for this version
+        existing_tag=$(gh api repos/${{ github.repository }}/git/refs/tags/v${latest_version} 2>/dev/null && echo "exists" || echo "")
+        if [[ -n "$existing_tag" ]]; then
+          echo "update_available=false" >> "$GITHUB_OUTPUT"
+          echo "Already up-to-date at v${latest_version}."
+        else
+          echo "update_available=true" >> "$GITHUB_OUTPUT"
+          echo "new_version=$latest_version" >> "$GITHUB_OUTPUT"
+          echo "New upstream version available: v${latest_version}"
+        fi
+
+    - name: Checkout Repository
+      if: steps.check.outputs.update_available == 'true'
+      uses: actions/checkout@v6
+
+    - name: Install Nix
+      if: steps.check.outputs.update_available == 'true'
+      uses: cachix/install-nix-action@v31.9.1
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update Version and Hash
+      if: steps.check.outputs.update_available == 'true'
+      run: |
+        new_version="${{ steps.check.outputs.new_version }}"
+
+        # Compute new hash for FontPatcher.zip using nix-prefetch-url
+        url="https://github.com/ryanoasis/nerd-fonts/releases/download/v${new_version}/FontPatcher.zip"
+        sha256=$(nix-prefetch-url --unpack "$url" 2>/dev/null)
+        sri_hash=$(nix hash convert "sha256:${sha256}")
+
+        echo "New version: ${new_version}"
+        echo "New SRI hash: ${sri_hash}"
+
+        # Update version in flake.nix
+        sed -i "s/version = \"[^\"]*\"/version = \"${new_version}\"/" flake.nix
+
+        # Update sha256 in flake.nix
+        sed -i "s|sha256 = \"sha256-[^\"]*\"|sha256 = \"${sri_hash}\"|" flake.nix
+
+    - name: Verify Build
+      if: steps.check.outputs.update_available == 'true'
+      run: nix build
+
+    - name: Commit, Tag, and Push
+      if: steps.check.outputs.update_available == 'true'
+      run: |
+        new_version="${{ steps.check.outputs.new_version }}"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add flake.nix
+        git commit -m "Update to nerd-fonts v${new_version}"
+        git tag "v${new_version}"
+        git push origin master --tags

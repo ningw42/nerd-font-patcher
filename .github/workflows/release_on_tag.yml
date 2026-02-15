@@ -1,0 +1,22 @@
+name: "Release on Tag"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Create Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "${{ github.ref_name }}" \
+          --repo "${{ github.repository }}" \
+          --title "${{ github.ref_name }}" \
+          --notes "Release for ${{ github.ref_name }}, tracking upstream [ryanoasis/nerd-fonts ${{ github.ref_name }}](https://github.com/ryanoasis/nerd-fonts/releases/tag/${{ github.ref_name }})."
