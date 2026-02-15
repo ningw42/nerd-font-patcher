@@ -2,8 +2,13 @@ name: "Check Upstream Update"
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/check_upstream_update.yml' # this action
   schedule:
-    - cron: "0 3 * * *" # daily at 03:00 UTC
+    - cron: "0 1/13 * * *" # twice a day at 01:00 UTC and 13:00 UTC
 
 permissions:
   contents: write
