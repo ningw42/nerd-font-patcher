@@ -12,7 +12,7 @@ fi
 BLANK_EM=2048
 
 usage() {
-    echo "Usage: nerd-font-patcher-symbols [-o OUTPUT_DIR] SOURCE_FONT"
+    echo "Usage: nerd-font-patcher-symbols [-o OUTPUT_DIR] [-n NAME] SOURCE_FONT"
     echo ""
     echo "Build a symbols-only Nerd Font TTF scaled to match a monospaced source font."
     echo ""
@@ -21,15 +21,18 @@ usage() {
     echo ""
     echo "Options:"
     echo "  -o DIR         Output directory (default: current directory)"
+    echo "  -n NAME        Font name for output file and metadata (e.g. SymbolsNerdFontIosevkata)"
     echo "  -h, --help     Show this help message"
     exit "${1:-0}"
 }
 
 OUTPUT_DIR="."
+FONT_NAME=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -o) OUTPUT_DIR="$2"; shift 2 ;;
+        -n) FONT_NAME="$2"; shift 2 ;;
         -h|--help) usage 0 ;;
         -*) echo "Error: Unknown option: $1" >&2; usage 1 ;;
         *)
@@ -76,15 +79,22 @@ SCALED_ASCENT=$(python3 -c "print(int(round($SRC_TYPO_ASCENT * $BLANK_EM / $SRC_
 SCALED_DESCENT=$(python3 -c "print(int(round($SRC_TYPO_DESCENT * $BLANK_EM / $SRC_EM)))")
 echo "  Scaled to EM=$BLANK_EM: width=$SCALED_WIDTH, ascent=$SCALED_ASCENT, descent=$SCALED_DESCENT"
 
+# Build patcher arguments
+PATCHER_ARGS=(
+    "$BLANK_SFD"
+    --cell "0:${SCALED_WIDTH}:${SCALED_DESCENT}:${SCALED_ASCENT}"
+    --complete
+    -ext ttf
+    --outputdir "$OUTPUT_DIR"
+)
+if [[ -n "$FONT_NAME" ]]; then
+    PATCHER_ARGS+=(--name "$FONT_NAME")
+fi
+
 # Run the patcher
 mkdir -p "$OUTPUT_DIR"
 echo "Running nerd-font-patcher..."
-"$PATCHER" \
-    "$BLANK_SFD" \
-    --cell "0:${SCALED_WIDTH}:${SCALED_DESCENT}:${SCALED_ASCENT}" \
-    --complete \
-    -ext ttf \
-    --outputdir "$OUTPUT_DIR"
+"$PATCHER" "${PATCHER_ARGS[@]}"
 
 echo "Done. Output in $OUTPUT_DIR/"
 ls -la "$OUTPUT_DIR/"*.ttf 2>/dev/null || true
