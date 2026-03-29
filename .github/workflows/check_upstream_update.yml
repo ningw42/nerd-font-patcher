@@ -66,14 +66,23 @@ jobs:
         sha256=$(nix-prefetch-url --unpack "$url" 2>/dev/null)
         sri_hash=$(nix hash convert "sha256:${sha256}")
 
+        # Compute new hash for NerdFontsSymbolsNerdFontBlank.sfd
+        sfd_url="https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v${new_version}/src/unpatched-fonts/NerdFontsSymbolsOnly/NerdFontsSymbolsNerdFontBlank.sfd"
+        sfd_sha256=$(nix-prefetch-url "$sfd_url" 2>/dev/null)
+        sfd_sri_hash=$(nix hash convert "sha256:${sfd_sha256}")
+
         echo "New version: ${new_version}"
         echo "New SRI hash: ${sri_hash}"
+        echo "New SFD SRI hash: ${sfd_sri_hash}"
 
         # Update version in flake.nix
         sed -i "s/version = \"[^\"]*\"/version = \"${new_version}\"/" flake.nix
 
-        # Update sha256 in flake.nix
-        sed -i "s|sha256 = \"sha256-[^\"]*\"|sha256 = \"${sri_hash}\"|" flake.nix
+        # Update sha256 for FontPatcher.zip (identified by trailing comment)
+        sed -i "s|sha256 = \"sha256-[^\"]*\"; # FontPatcher.zip|sha256 = \"${sri_hash}\"; # FontPatcher.zip|" flake.nix
+
+        # Update sha256 for NerdFontsSymbolsNerdFontBlank.sfd (identified by trailing comment)
+        sed -i "s|sha256 = \"sha256-[^\"]*\"; # NerdFontsSymbolsNerdFontBlank.sfd|sha256 = \"${sfd_sri_hash}\"; # NerdFontsSymbolsNerdFontBlank.sfd|" flake.nix
 
     - name: Verify Build
       if: steps.check.outputs.update_available == 'true'

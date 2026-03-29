@@ -19,13 +19,20 @@
 
       buildNerdFontPatcher =
         pkgs:
+        let
+          blankSfd = pkgs.fetchurl {
+            url = "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v${version}/src/unpatched-fonts/NerdFontsSymbolsOnly/NerdFontsSymbolsNerdFontBlank.sfd";
+            sha256 = "sha256-7NyPcRY//2Zl1hvJwFqnTjAl1E9OJ/Y5JopD/AB0Sw0="; # NerdFontsSymbolsNerdFontBlank.sfd
+          };
+          pythonWithFontforge = pkgs.python3.withPackages (ps: [ ps.fontforge ]);
+        in
         pkgs.python3Packages.buildPythonApplication rec {
           pname = "nerd-font-patcher";
           inherit version;
 
           src = pkgs.fetchzip {
             url = "https://github.com/ryanoasis/nerd-fonts/releases/download/v${version}/FontPatcher.zip";
-            sha256 = "sha256-koZj0Tn1HtvvSbQGTc3RbXQdUU4qJwgClOVq1RXW6aM=";
+            sha256 = "sha256-koZj0Tn1HtvvSbQGTc3RbXQdUU4qJwgClOVq1RXW6aM="; # FontPatcher.zip
             stripRoot = false;
           };
 
@@ -35,6 +42,7 @@
 
           patches = [
             ./patches/use-nix-paths.patch
+            ./patches/cellopt-reorder.patch
             ./patches/horizontal-centered.patch
           ];
 
@@ -45,6 +53,16 @@
             install -Dm755 font-patcher $out/bin/nerd-font-patcher
             cp -ra src/glyphs $out/share/
             cp -ra bin/scripts/name_parser $out/lib/
+            install -Dm644 ${blankSfd} $out/share/NerdFontsSymbolsNerdFontBlank.sfd
+
+            cat > $out/bin/nerd-font-patcher-symbols <<WRAPPER
+            #!/usr/bin/env bash
+            export PATH="${pythonWithFontforge}/bin:\$PATH"
+            export BLANK_SFD="$out/share/NerdFontsSymbolsNerdFontBlank.sfd"
+            export PATCHER="$out/bin/nerd-font-patcher"
+            exec "${./scripts/build-symbols-font.sh}" "\$@"
+            WRAPPER
+            chmod +x $out/bin/nerd-font-patcher-symbols
           '';
 
           meta = {
@@ -85,6 +103,10 @@
             nerd-font-patcher = {
               type = "app";
               program = "${nerd-font-patcher}/bin/nerd-font-patcher";
+            };
+            nerd-font-patcher-symbols = {
+              type = "app";
+              program = "${nerd-font-patcher}/bin/nerd-font-patcher-symbols";
             };
           };
         };
