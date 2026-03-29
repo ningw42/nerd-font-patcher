@@ -56,12 +56,12 @@
             install -Dm644 ${blankSfd} $out/share/NerdFontsSymbolsNerdFontBlank.sfd
 
             cat > $out/bin/nerd-font-patcher-symbols <<WRAPPER
-            #!/usr/bin/env bash
-            export PATH="${pythonWithFontforge}/bin:\$PATH"
-            export BLANK_SFD="$out/share/NerdFontsSymbolsNerdFontBlank.sfd"
-            export PATCHER="$out/bin/nerd-font-patcher"
-            exec "${./scripts/build-symbols-font.sh}" "\$@"
-            WRAPPER
+#!${pkgs.bash}/bin/bash
+export PATH="${pythonWithFontforge}/bin:\$PATH"
+export BLANK_SFD="$out/share/NerdFontsSymbolsNerdFontBlank.sfd"
+export PATCHER="$out/bin/nerd-font-patcher"
+exec ${pkgs.bash}/bin/bash "${./scripts/build-symbols-font.sh}" "\$@"
+WRAPPER
             chmod +x $out/bin/nerd-font-patcher-symbols
           '';
 
